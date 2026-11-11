@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OVO Deal Desk</title>
+<style>
+  :root {
+    --bg: #0b0c0e; --panel: #131519; --card: #1a1d22; --line: #262a31;
+    --text: #f2f3f5; --dim: #8b929e; --volt: #d4ff3a; --amber: #ffb547; --red: #ff6b6b;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--volt); outline-offset: 2px; }
+
+  header { display: flex; align-items: center; gap: 16px; padding: 20px 24px 0; }
+  .logo { font-size: 20px; font-weight: 800; letter-spacing: -.02em; }
+  .logo span { color: var(--volt); }
+  .logo small { font-weight: 500; color: var(--dim); margin-left: 8px; letter-spacing: 0; font-size: 13px; }
+  .spacer { flex: 1; }
+  .btn { background: var(--volt); color: #0b0c0e; border: 0; border-radius: 8px; padding: 9px 14px; font-weight: 700; cursor: pointer; }
+  .btn:disabled { opacity: .5; cursor: progress; }
+  .btn.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); font-weight: 500; }
+
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; padding: 20px 24px; }
+  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .stat b { display: block; font-size: 26px; font-weight: 800; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+  .stat span { color: var(--dim); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+  .stat:nth-child(2) b { color: var(--volt); }
+
+  .board { display: grid; grid-template-columns: repeat(5, minmax(210px, 1fr)); gap: 12px; padding: 0 24px 24px; overflow-x: auto; }
+  .col { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px; min-height: 60vh; }
+  .col.over { border-color: var(--volt); }
+  .col h2 { display: flex; justify-content: space-between; margin: 4px 6px 10px; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); font-weight: 600; }
+  .col h2 em { font-style: normal; color: var(--text); font-variant-numeric: tabular-nums; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-bottom: 8px; cursor: grab; }
+  .card:hover { border-color: #3a404a; }
+  .card .brand { font-weight: 700; font-size: 15px; }
+  .card .title { color: var(--dim); margin: 2px 0 10px; }
+  .card .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .card .value { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .tag { font-size: 11px; padding: 2px 7px; border-radius: 99px; border: 1px solid var(--line); color: var(--dim); white-space: nowrap; }
+  .tag.stale { color: var(--amber); border-color: #5a4320; }
+  .tag.call { color: var(--volt); border-color: #4a5a1a; }
+
+  aside { position: fixed; inset: 0 0 0 auto; width: min(460px, 100vw); background: var(--panel); border-left: 1px solid var(--line); padding: 24px; overflow-y: auto; transform: translateX(100%); transition: transform .18s ease; }
+  aside.open { transform: none; box-shadow: -30px 0 60px #0008; }
+  @media (prefers-reduced-motion: reduce) { aside { transition: none; } }
+  aside h1 { margin: 0; font-size: 24px; letter-spacing: -.02em; }
+  aside h3 { margin: 24px 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); }
+  .meta { color: var(--dim); margin: 4px 0 16px; }
+  .field { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; width: 100%; }
+  .inline { display: flex; gap: 8px; align-items: center; }
+  .ai { border: 1px solid #4a5a1a; border-radius: 12px; padding: 14px; background: linear-gradient(180deg, #1a2008, transparent 70%); }
+  .score { font-size: 34px; font-weight: 800; color: var(--volt); letter-spacing: -.03em; line-height: 1; }
+  .score small { font-size: 12px; color: var(--dim); font-weight: 500; letter-spacing: 0; margin-left: 6px; }
+  .ai p { margin: 8px 0; }
+  .ai pre { white-space: pre-wrap; font: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px; margin: 8px 0; }
+  .timeline { list-style: none; margin: 0; padding: 0; }
+  .timeline li { padding: 8px 0 8px 14px; border-left: 2px solid var(--line); }
+  .timeline li.call { border-color: var(--volt); }
+  .timeline time { display: block; color: var(--dim); font-size: 12px; }
+  .err { color: var(--red); min-height: 1.4em; margin: 6px 0 0; }
+
+  dialog { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 14px; padding: 24px; width: min(420px, 92vw); }
+  dialog::backdrop { background: #000a; }
+  dialog label { display: block; margin-bottom: 12px; color: var(--dim); font-size: 12px; }
+  dialog label .field { margin-top: 4px; color: var(--text); font-size: 14px; }
+  footer { color: var(--dim); font-size: 12px; padding: 0 24px 24px; }
+  @media (max-width: 720px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">OVO<span>.</span><small>Deal Desk</small></div>
+  <div class="spacer"></div>
+  <button class="btn" id="new">+ New deal</button>
+</header>
+<section class="stats" id="stats" aria-label="Pipeline summary"></section>
+<main class="board" id="board"></main>
+<footer>Demo data. Drag a card to change its stage, click it for the copilot and booking link.</footer>
+
+<aside id="drawer" aria-label="Deal details"></aside>
+
+<dialog id="dlg">
+  <form id="form">
+    <h1 style="margin:0 0 16px;font-size:20px">New deal</h1>
+    <label>Brand <input class="field" name="brand" required maxlength="200"></label>
+    <label>What's the deal? <input class="field" name="title" required maxlength="200" placeholder="Spring campaign, 3 videos"></label>
+    <label>Value (USD) <input class="field" name="value" type="number" min="0" step="1" required></label>
+    <label>Contact name <input class="field" name="contact_name" required maxlength="200"></label>
+    <label>Contact email <input class="field" name="contact_email" type="email" required></label>
+    <p class="err" id="formErr" role="alert"></p>
+    <div class="inline" style="justify-content:flex-end">
+      <button class="btn ghost" type="button" onclick="dlg.close()">Cancel</button>
+      <button class="btn">Create</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+const compact = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 });
+const when = (iso) => new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+const quietDays = (d) => Math.floor((Date.now() - new Date(d.updated_at)) / 864e5);
+
+async function api(path, method = 'GET', body) {
+  const r = await fetch('/api' + path, { method, body: body && JSON.stringify(body) });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error);
+  return j;
+}
+
+let stages = [], deals = [], openId = null;
+
+async function load() {
+  ({ stages, deals } = await api('/deals'));
+  const open = deals.filter((d) => prob(d) < 1);
+  const sum = (list, f = (d) => d.value) => list.reduce((n, d) => n + f(d), 0);
+  $('stats').innerHTML = [
+    [compact.format(sum(open)), 'Open pipeline'],
+    [compact.format(sum(open, (d) => d.value * prob(d))), 'Weighted forecast'],
+    [compact.format(sum(deals.filter((d) => prob(d) === 1))), 'Signed + delivered'],
+    [deals.filter((d) => d.next_call).length, 'Calls booked'],
+  ].map(([n, label]) => `<div class="stat"><b>${n}</b><span>${label}</span></div>`).join('');
+
+  $('board').innerHTML = stages.map((s) => {
+    const list = deals.filter((d) => d.stage === s.id);
+    return `<section class="col" data-stage="${s.id}">
+      <h2>${s.label} <em>${compact.format(sum(list))}</em></h2>
+      ${list.map(card).join('')}
+    </section>`;
+  }).join('');
+}
+const prob = (d) => stages.find((s) => s.id === d.stage).prob;
+
+function card(d) {
+  const q = quietDays(d);
+  const tag = d.next_call ? `<span class="tag call">Call ${esc(when(d.next_call))}</span>`
+    : q >= 7 && prob(d) < 1 ? `<span class="tag stale">${q}d quiet</span>` : '';
+  return `<div class="card" draggable="true" tabindex="0" role="button" data-id="${d.id}" aria-label="${esc(d.brand)}: ${esc(d.title)}">
+    <div class="brand">${esc(d.brand)}</div>
+    <div class="title">${esc(d.title)}</div>
+    <div class="row"><span class="value">${usd.format(d.value)}</span>${tag}</div>
+  </div>`;
+}
+
+// Board interactions: one delegated listener each instead of per-card handlers.
+const board = $('board');
+board.addEventListener('click', (e) => { const c = e.target.closest('.card'); if (c) openDeal(+c.dataset.id); });
+board.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.matches('.card')) openDeal(+e.target.dataset.id); });
+board.addEventListener('dragstart', (e) => e.dataTransfer.setData('text/plain', e.target.closest('.card').dataset.id));
+board.addEventListener('dragover', (e) => { const col = e.target.closest('.col'); if (col) { e.preventDefault(); col.classList.add('over'); } });
+board.addEventListener('dragleave', (e) => e.target.closest('.col')?.classList.remove('over'));
+board.addEventListener('drop', (e) => {
+  e.preventDefault();
+  const col = e.target.closest('.col');
+  if (col) move(+e.dataTransfer.getData('text/plain'), col.dataset.stage);
+});
+
+async function move(id, stage) {
+  await api(`/deals/${id}`, 'PATCH', { stage });
+  await load();
+  if (openId === id) openDeal(id);
+}
+
+async function openDeal(id, keepAi) {
+  openId = id;
+  const { deal, activities, bookings } = await api(`/deals/${id}`);
+  const link = `${location.origin}/book/${id}`;
+  const ai = keepAi ? $('ai').innerHTML : `<button class="btn" id="run">Draft my next move</button>`;
+  const d = $('drawer');
+  d.innerHTML = `
+    <div class="inline"><h1>${esc(deal.brand)}</h1><div class="spacer"></div><button class="btn ghost" id="close" aria-label="Close">✕</button></div>
+    <p class="meta">${esc(deal.title)} · <b style="color:var(--text)">${usd.format(deal.value)}</b><br>
+      ${esc(deal.contact_name)} · <a href="mailto:${esc(deal.contact_email)}" style="color:inherit">${esc(deal.contact_email)}</a></p>
+    <label class="inline">Stage
+      <select class="field" id="stage">${stages.map((s) => `<option value="${s.id}" ${s.id === deal.stage ? 'selected' : ''}>${s.label}</option>`).join('')}</select>
+    </label>
+
+    <h3>Copilot</h3>
+    <div class="ai" id="ai" aria-live="polite">${ai}</div>
+
+    <h3>Booking link</h3>
+    <div class="inline"><input class="field" readonly value="${link}" aria-label="Booking link"><button class="btn ghost" id="copyLink">Copy</button></div>
+    ${bookings.map((b) => `<p class="meta" style="margin:8px 0 0">📅 ${esc(when(b.slot))} with ${esc(b.name)}</p>`).join('')}
+
+    <h3>Activity</h3>
+    <form class="inline" id="note"><input class="field" name="body" placeholder="Log a note…" required maxlength="2000" aria-label="Note"><button class="btn ghost">Add</button></form>
+    <ul class="timeline" style="margin-top:12px">${activities.map((a) =>
+      `<li class="${esc(a.kind)}"><time>${esc(when(a.created_at))}</time>${esc(a.body)}</li>`).join('')}</ul>`;
+  d.classList.add('open');
+
+  $('close').onclick = () => { d.classList.remove('open'); openId = null; };
+  $('stage').onchange = (e) => move(id, e.target.value);
+  $('copyLink').onclick = (e) => copy(link, e.target);
+  $('note').onsubmit = async (e) => {
+    e.preventDefault();
+    await api(`/deals/${id}/notes`, 'POST', { body: e.target.body.value });
+    await load();
+    openDeal(id, true);
+  };
+  if (!keepAi) $('run').onclick = () => runCopilot(id, link);
+  else wireAi(link);
+}
+
+async function runCopilot(id, link) {
+  $('ai').innerHTML = `<button class="btn" disabled>Reading the deal…</button>`;
+  try {
+    const r = await api(`/deals/${id}/copilot`, 'POST');
+    const body = r.email_body.replaceAll('{booking_link}', link);
+    $('ai').innerHTML = `
+      <div class="score">${esc(r.score)}%<small>to close</small></div>
+      <p class="meta" style="margin:6px 0 0;font-size:12px">${r.source === 'claude' ? 'Read by Claude' : 'Rules engine. Set ANTHROPIC_API_KEY to have Claude read the notes.'}</p>
+      <p>${esc(r.reasoning)}</p>
+      <p><b>Next:</b> ${esc(r.next_action)}</p>
+      <pre id="draft"><b>${esc(r.email_subject)}</b>\n\n${esc(body)}</pre>
+      <div class="inline"><button class="btn" id="copyDraft">Copy email</button><button class="btn ghost" id="rerun">Redo</button></div>`;
+    wireAi(link);
+  } catch (e) {
+    $('ai').innerHTML = `<p class="err">${esc(e.message)}</p><button class="btn" id="rerun">Try again</button>`;
+    wireAi(link);
+  }
+}
+function wireAi(link) {
+  if ($('copyDraft')) $('copyDraft').onclick = (e) => copy($('draft').innerText, e.target);
+  if ($('rerun')) $('rerun').onclick = () => runCopilot(openId, link);
+  if ($('run')) $('run').onclick = () => runCopilot(openId, link);
+}
+async function copy(text, btn) {
+  await navigator.clipboard.writeText(text);
+  const was = btn.textContent;
+  btn.textContent = 'Copied';
+  setTimeout(() => (btn.textContent = was), 1200);
+}
+
+$('new').onclick = () => { $('formErr').textContent = ''; $('dlg').showModal(); };
+$('form').onsubmit = async (e) => {
+  e.preventDefault();
+  const f = Object.fromEntries(new FormData(e.target));
+  try {
+    const deal = await api('/deals', 'POST', { ...f, value: Number(f.value) });
+    e.target.reset();
+    $('dlg').close();
+    await load();
+    openDeal(deal.id);
+  } catch (err) { $('formErr').textContent = err.message; }
+};
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('dlg').open) $('close')?.click(); });
+
+load();
+</script>
+</body>
+</html>

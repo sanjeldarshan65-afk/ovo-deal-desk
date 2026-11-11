@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Book a call with OVO</title>
+<style>
+  :root { --bg: #0b0c0e; --panel: #131519; --line: #262a31; --text: #f2f3f5; --dim: #8b929e; --volt: #d4ff3a; --red: #ff6b6b; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; display: grid; place-items: start center; padding: 6vh 16px; }
+  main { width: min(560px, 100%); background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 28px; }
+  .logo { font-weight: 800; font-size: 18px; } .logo span { color: var(--volt); }
+  h1 { font-size: 26px; letter-spacing: -.02em; margin: 16px 0 4px; }
+  p { color: var(--dim); margin: 0 0 20px; }
+  fieldset { border: 0; padding: 0; margin: 0 0 16px; }
+  legend { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); margin-bottom: 8px; }
+  .slots { display: flex; flex-wrap: wrap; gap: 6px; }
+  .slots label { position: relative; }
+  .slots input { position: absolute; opacity: 0; inset: 0; }
+  .slots span { display: block; padding: 7px 12px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; font-variant-numeric: tabular-nums; }
+  .slots input:checked + span { background: var(--volt); color: #0b0c0e; border-color: var(--volt); font-weight: 700; }
+  .slots input:focus-visible + span { outline: 2px solid var(--volt); outline-offset: 2px; }
+  .slots input:disabled + span { opacity: .3; text-decoration: line-through; cursor: not-allowed; }
+  .field { display: block; width: 100%; margin: 4px 0 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px; font: inherit; color: inherit; }
+  button { width: 100%; background: var(--volt); color: #0b0c0e; border: 0; border-radius: 8px; padding: 12px; font: inherit; font-weight: 700; cursor: pointer; }
+  .err { color: var(--red); min-height: 1.5em; margin: 8px 0 0; }
+</style>
+</head>
+<body>
+<main id="main"><div class="logo">OVO<span>.</span></div><p style="margin-top:16px">Loading…</p></main>
+<script>
+const id = location.pathname.split('/').pop();
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+const main = document.getElementById('main');
+const head = `<div class="logo">OVO<span>.</span></div>`;
+
+async function load(error = '') {
+  const r = await fetch(`/api/book/${id}`);
+  if (!r.ok) return (main.innerHTML = `${head}<h1>Link not found</h1><p>Ask your OVO contact for a fresh booking link.</p>`);
+  const { brand, title, slots } = await r.json();
+  const days = Object.groupBy(slots, (s) => s.slot.slice(0, 10));
+  main.innerHTML = `${head}
+    <h1>Pick a time</h1>
+    <p>20 minutes with OVO Partnerships about <b style="color:var(--text)">${esc(brand)}: ${esc(title)}</b>.</p>
+    <form id="form">
+      ${Object.entries(days).map(([day, list]) => `<fieldset>
+        <legend>${new Date(day + 'T12:00').toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })}</legend>
+        <div class="slots">${list.map((s) => `<label><input type="radio" name="slot" value="${s.slot}" required ${s.taken ? 'disabled' : ''}><span>${s.slot.slice(11)}</span></label>`).join('')}</div>
+      </fieldset>`).join('')}
+      <label>Your name <input class="field" name="name" required maxlength="200" autocomplete="name"></label>
+      <label>Work email <input class="field" name="email" type="email" required autocomplete="email"></label>
+      <button>Confirm call</button>
+      <p class="err" role="alert">${esc(error)}</p>
+    </form>`;
+  document.getElementById('form').onsubmit = async (e) => {
+    e.preventDefault();
+    const body = Object.fromEntries(new FormData(e.target));
+    const res = await fetch(`/api/book/${id}`, { method: 'POST', body: JSON.stringify(body) });
+    const j = await res.json();
+    if (!res.ok) return load(j.error); // refetch so a slot someone else just took shows as gone
+    main.innerHTML = `${head}<h1>You're booked.</h1><p>${new Date(j.slot).toLocaleString([], { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' })}. The OVO team has it on their board.</p>`;
+  };
+}
+load();
+</script>
+</body>
+</html>
