@@ -68,3 +68,7 @@ One file, no test framework. It starts the server on an in-memory database and c
 - **One shared calendar.** A slot can be booked once across all deals, which fits one person taking calls and not a team.
 - **The Claude path has not been run end to end.** It was written against the SDK docs without an API key to hand; the rules-engine path is the one covered by the test.
 - **Sample data is invented.** The brands, values and contacts in the seed are placeholders. Delete `deals.db` to reset.
+
+## Contributors
+
+- [Darshan Sanjel (@sanjeldarshan65-afk)](https://github.com/sanjeldarshan65-afk) — project creator and maintainer.
