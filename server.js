@@ -144,7 +144,9 @@ export function heuristicCopilot({ deal, activities, bookings }) {
       : `${stage.label} deals close about ${stage.prob * 100}% of the time. ${quiet >= 7 ? `It has been quiet for ${quiet} days, which drags the odds down.` : 'It was touched recently, so momentum is intact.'}${call ? ` A call is booked for ${callWhen}, which helps.` : ''}`,
     next_action,
     email_subject,
-    email_body: `Hi ${first},\n\n${body}\n\nOVO Partnerships`,
+    // The rules cannot safely rephrase an internal note for an external reader, so the draft carries it
+    // as a bracketed line the sender must rewrite. Claude, when configured, writes that sentence itself.
+    email_body: `Hi ${first},\n\n${body}${note ? `\n\n[Before sending, say this in your own words. From your notes: "${note}"]` : ''}\n\nOVO Partnerships`,
     source: 'heuristic',
   };
 }

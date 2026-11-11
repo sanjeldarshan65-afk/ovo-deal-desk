@@ -37,6 +37,10 @@ try {
   assert.ok(ai.score > 0 && ai.score <= 100 && ai.email_body.includes('Ana'));
   assert.ok(!ai.email_body.includes('{booking_link}') && /call on/i.test(ai.next_action), 'a deal with a call booked must not be asked to book another');
   assert.ok(pub.timezone, 'booking page must be told which timezone the slots are in');
+
+  await call('POST', `/api/deals/${deal.id}/notes`, { body: 'They want 12 months of usage rights, we quoted 6.' });
+  const [, ai2] = await call('POST', `/api/deals/${deal.id}/copilot`);
+  assert.ok(ai2.email_body.includes('12 months of usage rights'), 'the draft must carry the specific open issue, not just "open points"');
   console.log('ok');
 } finally {
   server.close();

@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OVO Deal Desk</title>
+<link rel="icon" href="data:,">
 <style>
   /* Tokens are roles, not swatches. Each has a light and a dark value; the OS setting picks. */
   :root {
@@ -219,6 +220,7 @@ const drawer = $('drawer');
 const closeDeal = () => drawer.close();
 // Fires for the Close button, Escape, and a click on the backdrop alike.
 drawer.addEventListener('close', () => {
+  if (drawer.open) return; // the event is async: another deal may already be open by the time it fires
   const id = openId;
   openId = null;
   document.querySelector(`.card[data-id="${id}"]`)?.focus(); // the board re-renders, so refocus by id
@@ -274,9 +276,13 @@ async function runCopilot(id, link) {
   try {
     const r = await api(`/deals/${id}/copilot`, 'POST');
     const body = r.email_body.replaceAll('{booking_link}', link);
+    const stage = stages.find((s) => s.id === deals.find((d) => d.id === id)?.stage);
+    const won = stage?.prob === 1 && stage; // signed or delivered: a percentage would be meaningless
     $('ai').innerHTML = `
-      <div class="score num">${r.source === 'claude' ? '' : '~'}${esc(r.score)}%<span>chance to close</span></div>
-      <p class="meta" style="margin:4px 0 12px;font-size:0.8125rem">${r.source === 'claude' ? "Claude's estimate from the activity log." : 'Rough estimate from stage, days since last touch, and booked calls.'}</p>
+      ${won ? `<div class="score">${esc(won.label)}</div>
+      <p class="meta" style="margin:4px 0 12px;font-size:0.8125rem">This deal is won, so there is no close estimate. The draft is about what comes next.</p>`
+      : `<div class="score num">${r.source === 'claude' ? '' : '~'}${esc(r.score)}%<span>chance to close</span></div>
+      <p class="meta" style="margin:4px 0 12px;font-size:0.8125rem">${r.source === 'claude' ? "Claude's estimate from the activity log." : 'Rough estimate from stage, days since last touch, and booked calls.'}</p>`}
       <p>${esc(r.reasoning)}</p>
       <p><b>Next:</b> ${esc(r.next_action)}</p>
       <pre id="draft"><b>${esc(r.email_subject)}</b>\n\n${esc(body)}</pre>
