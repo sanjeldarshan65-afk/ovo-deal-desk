@@ -57,11 +57,11 @@ async function load(error = '') {
   const r = await fetch(`/api/book/${id}`).catch(() => null);
   if (!r) return (main.innerHTML = `${head}<h1>Can't load times right now</h1><p>Check your connection and reload this page.</p>`);
   if (!r.ok) return (main.innerHTML = `${head}<h1>This booking link doesn't work</h1><p>Ask your OVO contact to send you a new one.</p>`);
-  const { brand, title, slots } = await r.json();
+  const { brand, title, slots, timezone } = await r.json();
   const days = Object.groupBy(slots, (s) => s.slot.slice(0, 10));
   main.innerHTML = `${head}
     <h1>Pick a time</h1>
-    <p>A 20-minute call with OVO Partnerships about <b>${esc(brand)}: ${esc(title)}</b>. Crossed-out times are taken.</p>
+    <p>A 20-minute call with OVO Partnerships about <b>${esc(brand)}: ${esc(title)}</b>. All times are <b>${esc(timezone)}</b>. Crossed-out times are taken.</p>
     <form id="form">
       ${Object.entries(days).map(([day, list]) => `<fieldset>
         <legend>${new Date(day + 'T12:00').toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })}</legend>
@@ -81,7 +81,7 @@ async function load(error = '') {
     const res = await fetch(`/api/book/${id}`, { method: 'POST', body: JSON.stringify(body) }).catch(() => null);
     const j = res ? await res.json() : { error: "Couldn't reach OVO. Check your connection and try again." };
     if (!res?.ok) return load(j.error); // refetch so a slot someone else just took shows as gone
-    main.innerHTML = `${head}<h1>You're booked</h1><p>${new Date(j.slot).toLocaleString([], { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' })}. Your OVO contact will send the call details.</p>`;
+    main.innerHTML = `${head}<h1>You're booked</h1><p>${new Date(j.slot).toLocaleString([], { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' })}, ${esc(j.timezone)}. Your OVO contact will send the call details.</p>`;
   };
 }
 load();

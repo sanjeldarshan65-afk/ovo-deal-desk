@@ -70,8 +70,13 @@ function seed(db) {
 
 // ---------- booking slots ----------
 
-// Next 5 weekdays, hourly 10:00-16:00.
-// ponytail: slots are in server-local time with no timezone. Store UTC + render per-viewer when brands book across zones.
+// Next 5 weekdays, hourly 10:00-16:00, in the server's timezone (shown on the booking page).
+// ponytail: times are not converted per viewer. Store UTC + render in the visitor's zone when brands book across zones.
+export const TIMEZONE = (() => {
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const short = new Intl.DateTimeFormat('en-US', { timeZoneName: 'short' }).formatToParts().find((p) => p.type === 'timeZoneName').value;
+  return `${zone.replaceAll('_', ' ')} time (${short})`;
+})();
 export function slots(from = new Date()) {
   const pad = (n) => String(n).padStart(2, '0');
   const out = [];
@@ -102,16 +107,22 @@ const COPILOT_SCHEMA = {
 const COPILOT_SYSTEM = `You are the deal desk copilot for OVO, a company that closes brand partnership deals (sponsorships, content packages, event activations).
 You get one deal as JSON: its stage, value, days since last touch, the activity log, and any booked calls.
 Judge how likely it is to close, name the single next action, and draft the email that performs that action.
+If booked_calls has an upcoming call, never ask the contact to book another: build the next action and the email around that call.
+Only when no call is booked may the email invite one, using the literal text {booking_link} as the link.
+Find the specific open issue in the latest notes (a disputed term, a missing approval, a requested document) and make the draft about resolving it.
 Base everything on the activity log: quote specifics from it, never invent facts, prices or commitments that are not there.
 Write the email the way a sharp partnerships lead would: short, specific, one clear ask, no filler. Sign off as "OVO Partnerships".`;
 
 // Deterministic stand-in so the product still works with no API key (and so tests never hit the network).
-export function heuristicCopilot({ deal, bookings }) {
+export function heuristicCopilot({ deal, activities, bookings }) {
   const stage = STAGES.find((s) => s.id === deal.stage);
   const quiet = Math.floor((Date.now() - new Date(deal.updated_at)) / DAY);
   const call = bookings.find((b) => b.slot > now().slice(0, 16));
   const closed = stage.prob === 1;
-  const score = closed ? 100 : Math.max(5, Math.min(95, Math.round(stage.prob * 100 - Math.min(30, quiet * 2) + (call ? 10 : 0))));
+  // Rounded to 5 so a rule of thumb does not read like a measurement.
+  const score = closed ? 100 : Math.max(5, Math.min(95, Math.round((stage.prob * 100 - Math.min(30, quiet * 2) + (call ? 10 : 0)) / 5) * 5));
+  const note = activities.find((a) => a.kind === 'note')?.body;
+  const callWhen = call && new Date(call.slot).toLocaleString('en-US', { weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
   const first = deal.contact_name.split(' ')[0];
   const plays = {
     lead: ['Send the media kit and propose a 20-minute intro call.', `Media kit + quick intro: ${deal.title}`, `Great to connect. I've attached our media kit with audience numbers and past brand work.\n\nDo you have 20 minutes this week to talk through "${deal.title}"? You can grab a slot here: {booking_link}`],
@@ -120,12 +131,17 @@ export function heuristicCopilot({ deal, bookings }) {
     signed: ['Send the kickoff brief and lock deliverable dates.', `Kickoff: ${deal.title}`, `Excited to get "${deal.title}" moving. I'll send the kickoff brief with deliverable dates today. Let's do a short kickoff call to confirm them: {booking_link}`],
     delivered: ['Share results and open the renewal conversation.', `Results + what's next: ${deal.title}`, `"${deal.title}" is wrapped. I'm putting together a results recap for you this week.\n\nWhile it's fresh, I'd love to talk about what a follow-up could look like: {booking_link}`],
   };
-  const [next_action, email_subject, body] = plays[deal.stage];
+  // A call already on the calendar changes the play: prepare for it, never ask for a second one.
+  const [next_action, email_subject, body] = call
+    ? [`Prepare for the call on ${callWhen}${note ? `. Open item from the log: "${note}"` : ' and send an agenda.'}`,
+       `Ahead of our call: ${deal.title}`,
+       `Looking forward to speaking on ${callWhen}.\n\nSo we use the 20 minutes well, I'll come with a concrete proposal on the open points for "${deal.title}", and we can aim to leave with agreed terms. If there is anything you want covered, reply here and I'll add it.`]
+    : plays[deal.stage];
   return {
     score,
     reasoning: closed
       ? 'This deal is already signed, so the work now is delivery and renewal.'
-      : `${stage.label} deals close about ${stage.prob * 100}% of the time. ${quiet >= 7 ? `It has been quiet for ${quiet} days, which drags the odds down.` : 'It was touched recently, so momentum is intact.'}${call ? ' A call is booked, which helps.' : ''}`,
+      : `${stage.label} deals close about ${stage.prob * 100}% of the time. ${quiet >= 7 ? `It has been quiet for ${quiet} days, which drags the odds down.` : 'It was touched recently, so momentum is intact.'}${call ? ` A call is booked for ${callWhen}, which helps.` : ''}`,
     next_action,
     email_subject,
     email_body: `Hi ${first},\n\n${body}\n\nOVO Partnerships`,
@@ -233,7 +249,7 @@ export function createServer(db, ai = copilot) {
     ['GET', /^\/api\/book\/(\d+)$/, ([id]) => {
       const { brand, title } = getDeal(id);
       const taken = new Set(db.prepare('SELECT slot FROM bookings').all().map((r) => r.slot));
-      return { brand, title, slots: slots().map((slot) => ({ slot, taken: taken.has(slot) })) };
+      return { brand, title, timezone: TIMEZONE, slots: slots().map((slot) => ({ slot, taken: taken.has(slot) })) };
     }],
     ['POST', /^\/api\/book\/(\d+)$/, async ([id], req) => {
       getDeal(id);
@@ -248,7 +264,7 @@ export function createServer(db, ai = copilot) {
         throw e;
       }
       log(id, 'call', `${who} booked a call for ${b.slot.replace('T', ' at ')}`);
-      return { slot: b.slot };
+      return { slot: b.slot, timezone: TIMEZONE };
     }],
   ];
 

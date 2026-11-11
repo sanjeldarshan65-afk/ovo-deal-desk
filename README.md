@@ -64,7 +64,7 @@ One file, no test framework. It starts the server on an in-memory database and c
 ## Known limits
 
 - **No login.** The server binds to 127.0.0.1 only. It needs authentication before it runs anywhere else.
-- **No timezones.** Booking slots are in the server's local time.
+- **One timezone.** Booking slots are in the server's timezone. The booking page says which, but does not convert to the visitor's.
 - **One shared calendar.** A slot can be booked once across all deals, which fits one person taking calls and not a team.
 - **The Claude path has not been run end to end.** It was written against the SDK docs without an API key to hand; the rules-engine path is the one covered by the test.
 - **Sample data is invented.** The brands, values and contacts in the seed are placeholders. Delete `deals.db` to reset.

@@ -67,11 +67,14 @@
   .tag.stale { color: var(--warn); }
   .tag.call { color: var(--accent-text); font-weight: 600; }
 
-  aside { position: fixed; inset: 0 0 0 auto; width: min(480px, 100vw); background: var(--surface); padding: 24px; overflow-y: auto; visibility: hidden; transform: translateX(100%); transition: transform 150ms ease-in, visibility 150ms; }
-  aside.open { visibility: visible; transform: none; box-shadow: -24px 0 48px -12px rgb(0 0 0 / 0.35); transition: transform 300ms var(--ease-out), visibility 0s; }
-  @media (prefers-reduced-motion: reduce) { aside, aside.open { transition: none; } }
-  aside h1 { margin: 0; font-size: 1.5rem; letter-spacing: -0.02em; }
-  aside h3 { margin: 32px 0 8px; font-size: 0.875rem; font-weight: 650; }
+  /* The deal drawer is a native modal dialog: focus stays inside it and the board behind is inert. */
+  #drawer { position: fixed; inset: 0 0 0 auto; margin: 0; width: min(480px, 100vw); max-width: none; height: 100dvh; max-height: none; border-radius: 0; padding: 24px; overflow-y: auto; box-shadow: -24px 0 48px -12px rgb(0 0 0 / 0.35); }
+  #drawer[open] { animation: slide-in 300ms var(--ease-out); }
+  #drawer::backdrop { background: rgb(0 0 0 / 0.25); }
+  @keyframes slide-in { from { transform: translateX(100%); } }
+  @media (prefers-reduced-motion: reduce) { #drawer[open] { animation: none; } }
+  #drawer h1 { margin: 0; font-size: 1.5rem; letter-spacing: -0.02em; }
+  #drawer h3 { margin: 32px 0 8px; font-size: 0.875rem; font-weight: 650; }
   .meta { color: var(--dim); margin: 4px 0 16px; }
   .meta b { color: var(--text); }
   .meta a { color: inherit; text-underline-offset: 3px; }
@@ -93,10 +96,18 @@
 
   dialog { background: var(--surface); color: var(--text); border: 0; border-radius: 12px; padding: 24px; width: min(440px, 92vw); box-shadow: 0 24px 48px -12px rgb(0 0 0 / 0.4); }
   dialog::backdrop { background: rgb(0 0 0 / 0.5); }
-  dialog h1 { margin: 0 0 16px; font-size: 1.25rem; }
-  dialog label { display: block; margin-bottom: 12px; font-weight: 500; }
-  dialog label .field { margin-top: 4px; font-weight: 400; }
-  dialog small { color: var(--dim); font-weight: 400; }
+  #dlg h1 { margin: 0 0 16px; font-size: 1.25rem; }
+  #dlg label { display: block; margin-bottom: 12px; font-weight: 500; }
+  #dlg label .field { margin-top: 4px; font-weight: 400; }
+  #dlg small { color: var(--dim); font-weight: 400; }
+  /* Phones get a list grouped by stage, not a squeezed five-column board. */
+  @media (max-width: 720px) {
+    header { justify-content: space-between; }
+    .summary { order: 3; flex-basis: 100%; }
+    .board { grid-template-columns: 1fr; overflow: visible; }
+    .col { min-height: 0; }
+    .col .empty { margin: 4px; }
+  }
   footer { color: var(--dim); padding: 0 24px 24px; font-size: 0.875rem; }
 </style>
 </head>
@@ -108,9 +119,9 @@
 </header>
 <p id="status" role="alert"></p>
 <main class="board" id="board"></main>
-<footer>Sample data. Drag a deal to change its stage, or open it to change the stage from the keyboard.</footer>
+<footer>Sample data. Drag a deal to another stage, or open it and change the stage there.</footer>
 
-<aside id="drawer" aria-label="Deal details" tabindex="-1"></aside>
+<dialog id="drawer" aria-labelledby="drawerTitle"></dialog>
 
 <dialog id="dlg" aria-labelledby="dlgTitle">
   <form id="form">
@@ -151,7 +162,7 @@ addEventListener('unhandledrejection', (e) => {
   setTimeout(() => ($('status').textContent = ''), 6000);
 });
 
-let stages = [], deals = [], openId = null, lastFocus = null;
+let stages = [], deals = [], openId = null;
 const prob = (d) => stages.find((s) => s.id === d.stage).prob;
 
 async function load() {
@@ -161,7 +172,7 @@ async function load() {
   $('summary').innerHTML = [
     ['Open pipeline', compact.format(sum(open))],
     ['Weighted forecast', compact.format(sum(open, (d) => d.value * prob(d)))],
-    ['Signed', compact.format(sum(deals.filter((d) => prob(d) === 1)))],
+    ['Total won', compact.format(sum(deals.filter((d) => prob(d) === 1)))],
     ['Calls booked', deals.filter((d) => d.next_call).length],
   ].map(([label, n]) => `<div><dt>${label}</dt><dd>${n}</dd></div>`).join('');
 
@@ -169,7 +180,7 @@ async function load() {
     const list = deals.filter((d) => d.stage === s.id);
     return `<section class="col" data-stage="${s.id}" aria-label="${s.label}">
       <h2>${s.label} <span class="num">${list.length ? `${list.length} · ${compact.format(sum(list))}` : ''}</span></h2>
-      ${list.map(card).join('') || `<p class="empty">No deals in ${s.label.toLowerCase()}. Drag one here.</p>`}
+      ${list.map(card).join('') || `<p class="empty">No deals in ${s.label.toLowerCase()} yet.</p>`}
     </section>`;
   }).join('');
 }
@@ -204,23 +215,26 @@ async function move(id, stage) {
   if (openId === id) openDeal(id, true);
 }
 
-function closeDeal() {
-  $('drawer').classList.remove('open');
+const drawer = $('drawer');
+const closeDeal = () => drawer.close();
+// Fires for the Close button, Escape, and a click on the backdrop alike.
+drawer.addEventListener('close', () => {
+  const id = openId;
   openId = null;
-  lastFocus?.focus();
-}
+  document.querySelector(`.card[data-id="${id}"]`)?.focus(); // the board re-renders, so refocus by id
+});
+drawer.addEventListener('click', (e) => { if (e.target === drawer && e.clientX < drawer.getBoundingClientRect().left) closeDeal(); });
 
 async function openDeal(id, keepAi) {
-  const d = $('drawer');
-  const wasOpen = openId === id && d.classList.contains('open');
-  if (!wasOpen) lastFocus = document.activeElement;
+  const d = drawer;
+  const wasOpen = openId === id && d.open;
   openId = id;
   const { deal, activities, bookings } = await api(`/deals/${id}`);
   const link = `${location.origin}/book/${id}`;
   const ai = keepAi && wasOpen ? $('ai').innerHTML
     : `<p style="margin-top:0">Reads this deal's activity and drafts the email that moves it forward.</p><button class="btn" id="run">Draft next move</button>`;
   d.innerHTML = `
-    <div class="inline"><h1 class="grow">${esc(deal.brand)}</h1><button class="btn quiet" id="close">Close</button></div>
+    <div class="inline"><h1 class="grow" id="drawerTitle">${esc(deal.brand)}</h1><button class="btn quiet" id="close">Close</button></div>
     <p class="meta">${esc(deal.title)} · <b class="num">${usd.format(deal.value)}</b><br>
       ${esc(deal.contact_name)} · <a href="mailto:${esc(deal.contact_email)}">${esc(deal.contact_email)}</a></p>
     <label class="inline">Stage
@@ -240,8 +254,7 @@ async function openDeal(id, keepAi) {
     <form class="inline" id="note"><input class="field" id="noteBody" name="body" required maxlength="2000" autocomplete="off"><button class="btn quiet" style="white-space:nowrap">Add note</button></form>
     <ul class="timeline">${activities.map((a) =>
       `<li><div class="when"><span class="kind">${KIND[a.kind] ?? esc(a.kind)}</span><time>${esc(when(a.created_at))}</time></div>${esc(a.body)}</li>`).join('')}</ul>`;
-  d.classList.add('open');
-  if (!wasOpen) d.focus();
+  if (!d.open) d.showModal();
 
   $('close').onclick = closeDeal;
   $('stage').onchange = (e) => move(id, e.target.value);
@@ -262,12 +275,12 @@ async function runCopilot(id, link) {
     const r = await api(`/deals/${id}/copilot`, 'POST');
     const body = r.email_body.replaceAll('{booking_link}', link);
     $('ai').innerHTML = `
-      <div class="score num">${esc(r.score)}%<span>likely to close</span></div>
+      <div class="score num">${r.source === 'claude' ? '' : '~'}${esc(r.score)}%<span>chance to close</span></div>
+      <p class="meta" style="margin:4px 0 12px;font-size:0.8125rem">${r.source === 'claude' ? "Claude's estimate from the activity log." : 'Rough estimate from stage, days since last touch, and booked calls.'}</p>
       <p>${esc(r.reasoning)}</p>
       <p><b>Next:</b> ${esc(r.next_action)}</p>
       <pre id="draft"><b>${esc(r.email_subject)}</b>\n\n${esc(body)}</pre>
-      <div class="inline"><button class="btn" id="copyDraft">Copy email</button><button class="btn quiet" id="rerun">Draft again</button></div>
-      <p class="meta" style="margin:12px 0 0;font-size:0.8125rem">${r.source === 'claude' ? 'Drafted by Claude from the activity log.' : 'Drafted by the built-in rules. Set ANTHROPIC_API_KEY and restart to have Claude read the notes.'}</p>`;
+      <div class="inline"><button class="btn" id="copyDraft">Copy email</button><button class="btn quiet" id="rerun">Draft again</button></div>`;
   } catch (e) {
     $('ai').innerHTML = `<p class="err" style="margin-top:0">Couldn't draft a next move. ${esc(e.message)}</p><button class="btn" id="rerun" style="margin-top:12px">Try again</button>`;
   }
@@ -296,7 +309,6 @@ $('form').onsubmit = async (e) => {
     openDeal(deal.id);
   } catch (err) { $('formErr').textContent = err.message; }
 };
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('dlg').open && openId) closeDeal(); });
 
 load();
 </script>
