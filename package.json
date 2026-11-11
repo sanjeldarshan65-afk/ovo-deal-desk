@@ -8,6 +8,6 @@
     "test": "node --disable-warning=ExperimentalWarning test.js"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "*"
+    "@anthropic-ai/sdk": "^1.8.0"
   }
 }
