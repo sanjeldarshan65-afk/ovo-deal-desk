@@ -5,43 +5,63 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Book a call with OVO</title>
 <style>
-  :root { --bg: #0b0c0e; --panel: #131519; --line: #262a31; --text: #f2f3f5; --dim: #8b929e; --volt: #d4ff3a; --red: #ff6b6b; color-scheme: dark; }
+  :root {
+    color-scheme: light dark;
+    --canvas: light-dark(#f5f5f1, #0b0c0e);
+    --surface: light-dark(#ffffff, #131519);
+    --line: light-dark(#d9d9d2, #2a2e35);
+    --text: light-dark(#14161a, #f2f3f5);
+    --dim: light-dark(#565c66, #9aa1ad);
+    --action: #d4ff3a; --on-action: #0b0c0e;
+    --accent-text: light-dark(#3d5200, #d4ff3a);
+    --error: light-dark(#b3261e, #ff8080);
+  }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; display: grid; place-items: start center; padding: 6vh 16px; }
-  main { width: min(560px, 100%); background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 28px; }
-  .logo { font-weight: 800; font-size: 18px; } .logo span { color: var(--volt); }
-  h1 { font-size: 26px; letter-spacing: -.02em; margin: 16px 0 4px; }
-  p { color: var(--dim); margin: 0 0 20px; }
+  body { margin: 0; background: var(--canvas); color: var(--text); font: 1rem/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; display: grid; place-items: start center; padding: 6vh 16px; }
+  ::selection { background: var(--action); color: var(--on-action); }
+  main { width: min(560px, 100%); background: var(--surface); border-radius: 12px; padding: 32px; }
+  .logo { font-weight: 800; font-size: 1.25rem; letter-spacing: -0.02em; }
+  h1 { font-size: 1.75rem; letter-spacing: -0.02em; margin: 24px 0 4px; text-wrap: balance; }
+  p { color: var(--dim); margin: 0 0 24px; text-wrap: pretty; }
+  p b { color: var(--text); }
   fieldset { border: 0; padding: 0; margin: 0 0 16px; }
-  legend { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); margin-bottom: 8px; }
-  .slots { display: flex; flex-wrap: wrap; gap: 6px; }
+  legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
+  .slots { display: flex; flex-wrap: wrap; gap: 8px; }
   .slots label { position: relative; }
-  .slots input { position: absolute; opacity: 0; inset: 0; }
-  .slots span { display: block; padding: 7px 12px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; font-variant-numeric: tabular-nums; }
-  .slots input:checked + span { background: var(--volt); color: #0b0c0e; border-color: var(--volt); font-weight: 700; }
-  .slots input:focus-visible + span { outline: 2px solid var(--volt); outline-offset: 2px; }
-  .slots input:disabled + span { opacity: .3; text-decoration: line-through; cursor: not-allowed; }
-  .field { display: block; width: 100%; margin: 4px 0 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px; font: inherit; color: inherit; }
-  button { width: 100%; background: var(--volt); color: #0b0c0e; border: 0; border-radius: 8px; padding: 12px; font: inherit; font-weight: 700; cursor: pointer; }
-  .err { color: var(--red); min-height: 1.5em; margin: 8px 0 0; }
+  .slots input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+  .slots span { display: grid; place-items: center; min-width: 64px; min-height: 44px; border: 1px solid var(--line); border-radius: 8px; font-variant-numeric: tabular-nums; transition: border-color 120ms; }
+  .slots input:hover + span { border-color: var(--dim); }
+  .slots input:checked + span { background: var(--action); color: var(--on-action); border-color: var(--action); font-weight: 700; }
+  .slots input:focus-visible + span { outline: 2px solid var(--accent-text); outline-offset: 2px; }
+  .slots input:disabled { cursor: not-allowed; }
+  .slots input:disabled + span { opacity: 0.4; text-decoration: line-through; border-style: dashed; }
+  form > label { display: block; font-weight: 500; margin-top: 16px; }
+  .field { display: block; width: 100%; margin-top: 4px; min-height: 44px; background: var(--canvas); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; font: inherit; color: inherit; }
+  .field:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
+  button { width: 100%; min-height: 48px; margin-top: 24px; background: var(--action); color: var(--on-action); border: 0; border-radius: 8px; font: inherit; font-weight: 700; cursor: pointer; transition: filter 120ms; }
+  button:hover { filter: brightness(0.93); }
+  button:disabled { opacity: 0.55; cursor: progress; }
+  .err { color: var(--error); margin: 12px 0 0; }
+  .err:empty { display: none; }
 </style>
 </head>
 <body>
-<main id="main"><div class="logo">OVO<span>.</span></div><p style="margin-top:16px">Loading…</p></main>
+<main id="main"><div class="logo">OVO</div><p style="margin-top:24px">Loading available times…</p></main>
 <script>
 const id = location.pathname.split('/').pop();
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 const main = document.getElementById('main');
-const head = `<div class="logo">OVO<span>.</span></div>`;
+const head = `<div class="logo">OVO</div>`;
 
 async function load(error = '') {
-  const r = await fetch(`/api/book/${id}`);
-  if (!r.ok) return (main.innerHTML = `${head}<h1>Link not found</h1><p>Ask your OVO contact for a fresh booking link.</p>`);
+  const r = await fetch(`/api/book/${id}`).catch(() => null);
+  if (!r) return (main.innerHTML = `${head}<h1>Can't load times right now</h1><p>Check your connection and reload this page.</p>`);
+  if (!r.ok) return (main.innerHTML = `${head}<h1>This booking link doesn't work</h1><p>Ask your OVO contact to send you a new one.</p>`);
   const { brand, title, slots } = await r.json();
   const days = Object.groupBy(slots, (s) => s.slot.slice(0, 10));
   main.innerHTML = `${head}
     <h1>Pick a time</h1>
-    <p>20 minutes with OVO Partnerships about <b style="color:var(--text)">${esc(brand)}: ${esc(title)}</b>.</p>
+    <p>A 20-minute call with OVO Partnerships about <b>${esc(brand)}: ${esc(title)}</b>. Crossed-out times are taken.</p>
     <form id="form">
       ${Object.entries(days).map(([day, list]) => `<fieldset>
         <legend>${new Date(day + 'T12:00').toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })}</legend>
@@ -49,16 +69,19 @@ async function load(error = '') {
       </fieldset>`).join('')}
       <label>Your name <input class="field" name="name" required maxlength="200" autocomplete="name"></label>
       <label>Work email <input class="field" name="email" type="email" required autocomplete="email"></label>
-      <button>Confirm call</button>
+      <button>Book this call</button>
       <p class="err" role="alert">${esc(error)}</p>
     </form>`;
   document.getElementById('form').onsubmit = async (e) => {
     e.preventDefault();
+    const btn = e.target.querySelector('button');
+    btn.disabled = true;
+    btn.textContent = 'Booking…';
     const body = Object.fromEntries(new FormData(e.target));
-    const res = await fetch(`/api/book/${id}`, { method: 'POST', body: JSON.stringify(body) });
-    const j = await res.json();
-    if (!res.ok) return load(j.error); // refetch so a slot someone else just took shows as gone
-    main.innerHTML = `${head}<h1>You're booked.</h1><p>${new Date(j.slot).toLocaleString([], { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' })}. The OVO team has it on their board.</p>`;
+    const res = await fetch(`/api/book/${id}`, { method: 'POST', body: JSON.stringify(body) }).catch(() => null);
+    const j = res ? await res.json() : { error: "Couldn't reach OVO. Check your connection and try again." };
+    if (!res?.ok) return load(j.error); // refetch so a slot someone else just took shows as gone
+    main.innerHTML = `${head}<h1>You're booked</h1><p>${new Date(j.slot).toLocaleString([], { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' })}. Your OVO contact will send the call details.</p>`;
   };
 }
 load();
